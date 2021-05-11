@@ -1,0 +1,321 @@
+---
+title: "Time_series_HSE Вариант 28"
+author: "Pak Elena, MAR201"
+date: '17 марта 2021 г '
+output: word_document
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tsibble)
+library(feasts)
+library(smooth)
+library(forecast)
+library(FitAR)
+library(aTSA)
+library(tseries)
+```
+
+```{r message=FALSE, warning=FALSE}
+var<-c(-13.0667,-12.1333,-8.6471,-7.1359,-4.0776,-16.8161,-5.1543,-14.2825,11.5351,-17.9563,-5.7135,01.7987,-6.0181,01.7289,02.7943,-1.2107,-3.1772,-5.4659,09.3569,00.6298,12.3369,03.5448,03.8864,15.3996,07.8337,06.9629,13.8908,08.8198,26.4772,15.7996,15.9605,18.9269,09.6052,20.8616,16.7275,16.9869,31.5768,09.1595,20.9609,26.1633,22.7191,33.8931,18.8032,33.4125,27.7645,28.8530,27.1536,30.0192,43.2256,24.2123,40.0690,30.5745,46.9092,41.6747,43.6663,28.4380,41.7710,37.3563,43.7848,31.4941,50.7340,48.2195,44.1604,48.8566,47.5476,57.1431,46.6968,50.6780,58.7576,48.1052,53.5027,65.1579,41.5648,54.7101,53.9214,51.3056,65.2809,55.7702,63.1030,71.2532,49.7224,76.4692,53.9854,77.8248,61.3436,68.9419,66.8446,63.1043,73.0486,74.4035,74.4986,69.2656,77.5857,72.2464,76.2765,76.9190,71.5579,86.0379,71.7080,91.3034,74.9482,86.8947,74.5806,102.8354,76.7199,96.4805,77.3467,90.9754,74.8570,104.8306,86.1216,92.9822,86.4538,99.1617,93.6631,103.1810,97.7831,99.8512,96.5865,99.7693,97.4914,108.0463,87.6793,114.3422,105.2549,96.0047,113.7729,104.2047,107.0850,112.6592,104.8050,110.8601,98.8993,111.6054,102.0244,115.5743,110.5507,116.7662,111.3572,108.6798,122.0118,109.5247,127.4824,120.3681,120.2627,113.1276,115.9696,129.6752,118.2230,129.2284,119.2042,125.9536,134.9612,119.0270,143.4780,123.3894,143.9974,120.9775,138.2909,137.6079,133.4908,124.1937,153.3494,129.3653,161.4289,129.4640,153.3313,127.6224,148.2832,144.2044,151.1246,138.0920,161.6436,138.0106,150.7584,138.9695,157.8111,149.7734,156.7452,146.9957,156.6645,149.1738,163.0105,152.3838,163.2943,160.1688,155.0573,170.7816,152.6533,162.2988,158.8665,164.6226,170.9414,160.1639,171.1954,166.5953,171.9394,181.3421,171.4168,163.5300)
+length(var)
+```
+
+Всего 200 значений
+
+```{r message=FALSE, warning=FALSE}
+tim<-c(200:1)
+```
+
+Сверху мы создали вектор от 200 до 1, для того, чтобы создать вектор со временем (для каждого t). Для этого, мы создадим значение со сегодняшней датой и вычтим количество дней начиная от 200 до 1 
+```{r message=FALSE, warning=FALSE}
+today<-as.Date("2021-03-17")
+dat<-today-tim
+```
+
+Вектор *dat* - вектор с датами, начиная от самой раней до даты на 200 дней вперед
+```{r message=FALSE, warning=FALSE}
+head(dat)
+length(dat)
+```
+
+Взяли временной промежуток от 29 августа 2020 до 17 марта 2021. 
+
+Создадим объект tibble
+```{r message=FALSE, warning=FALSE}
+var1<-tibble(var,dat)
+```
+
+Используем функцию as_tibble для преобразования объекста tibble в объект для работы с timeframes
+```{r message=FALSE, warning=FALSE}
+data_ts<-as_tsibble(var1, index=dat)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+head(data_ts)
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data_ts, aes(x=dat, y=var))+
+  geom_line()+
+  theme_minimal()+
+  ggtitle('Значения переменной во времени')+
+  scale_x_continuous(breaks=seq(1,200,20))+
+  xlab("t")
+```
+
+##Расширенный тест Дики-Фуллера
+
+```{r message=FALSE, warning=FALSE}
+adf.test(var, k=5)
+```
+
+
+##Детрендирование ряда
+Создадим новый объект - датафрейм. В ачестве времени используем обычный вектор с t значениями (от 1 до 200)
+```{r message=FALSE, warning=FALSE}
+time<-c(1:200)
+df<-tibble(var,time)
+```
+
+Для начала используем простую линейную модель
+```{r message=FALSE, warning=FALSE}
+mod<-lm(var~time, data=df)
+summary(mod)
+```
+
+```{r message=FALSE, warning=FALSE}
+df$fit<-mod$fitted.values
+ggplot(df, aes(x=time, y=var))+
+  geom_line()+
+  theme_minimal()+
+  ggtitle('Значения переменной во времени')+ 
+  stat_smooth(method="lm", se=FALSE)
+```
+
+Сохраним остатки в датафрейм
+```{r message=FALSE, warning=FALSE}
+res<-mod$residuals
+df$res<-mod$residuals
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(df, aes(x=time, y=res))+
+  geom_line()+
+  theme_minimal()+
+  ggtitle('Значения остатков во времени')+
+  geom_hline(yintercept=0)+
+  geom_hline(yintercept=mean(df$res), color='red')
+```
+
+Попробуем использовать полином
+```{r message=FALSE, warning=FALSE}
+mod<-lm(var~poly(time,2), data=df)
+summary(mod)
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(df, aes(x=time, y=var))+
+  geom_line()+
+  theme_minimal()+
+  ggtitle('Значения переменной во времени')+ 
+  stat_smooth(method="lm", formula=y~poly(x,2))
+```
+Впринципе, ничего не изменилось. Можно взять простую линейную функцию.
+
+##Корреляционная функция
+```{r message=FALSE, warning=FALSE}
+data_ts %>%
+  ACF() %>% 
+  autoplot() + 
+  theme_minimal()
+```
+
+Теперь сохраним остатки в новфй даатфрейм и преобразуем в формат для работы с timeframes
+```{r message=FALSE, warning=FALSE}
+table<-tibble(res, dat)
+data_res<-as_tsibble(table, index=dat)
+```
+
+```{r message=FALSE, warning=FALSE}
+data_res %>% 
+  ACF() %>%
+  print(n=nrow(data_res))
+```
+
+```{r message=FALSE, warning=FALSE}
+data_res %>% 
+  ACF() %>% 
+  autoplot() + 
+  theme_minimal()+
+  ggtitle("Автокорреляционная функция")
+```
+
+Пуктирные линии соответствуют критическим значениям корреляции (на уровне 0.05) - 1.96 / корень из 200 = 0.14
+
+```{r message=FALSE, warning=FALSE}
+data_res %>% 
+  PACF() %>%
+  print(n=nrow(data_res))
+```
+
+```{r message=FALSE, warning=FALSE}
+data_res %>% 
+  PACF() %>% 
+  autoplot() + 
+  theme_minimal()+
+  ggtitle("Частная автоорреляционная функция")
+```
+
+
+Авторегрессия первого порядка, второго порядка ARMA 1 порядок
+```{r message=FALSE, warning=FALSE}
+model_ar1<-ar(data_res, aic=FALSE, order.max = 1)
+model_ar1
+```
+```{r message=FALSE, warning=FALSE}
+model_ar1$ar
+model_ar1$var.pred
+resAR1<-model_ar1$resid
+```
+```{r message=FALSE, warning=FALSE}
+plot(model_ar1)
+```
+
+```{r message=FALSE, warning=FALSE}
+model_ar2<-ar(data_res, aic=FALSE, order.max = 2)
+model_ar2
+```
+```{r message=FALSE, warning=FALSE}
+model_ar2$ar
+model_ar2$var.pred
+resAR2<-model_ar2$resid
+```
+Предсказание на  шага
+```{r message=FALSE, warning=FALSE}
+forecast_AR1<-forecast(model_ar1, h=2)
+```
+```{r message=FALSE, warning=FALSE}
+forecast_AR1
+```
+
+```{r message=FALSE, warning=FALSE}
+autoplot(forecast_AR1)+
+  theme_minimal()
+```
+
+
+Про проверку остатков на нормальность https://towardsdatascience.com/introduction-to-time-series-analysis-with-r-a2f97650baa3
+
+В пакете FitAr можно построить авторегрессию с AIC и BIC
+
+
+
+
+```{r message=FALSE, warning=FALSE}
+AR1<-FitAR(res,1)
+AR1
+```
+
+```{r message=FALSE, warning=FALSE}
+p<-SelectModel(res, ARModel="AR", Criterion="AIC")
+p
+```
+
+```{r message=FALSE, warning=FALSE}
+p<-SelectModel(res,ARModel="AR")
+p
+```
+```{r message=FALSE, warning=FALSE}
+coef(AR1)
+```
+
+```{r message=FALSE, warning=FALSE}
+AR2<-FitAR(res,2,ARModel = "ARp",  SubsetQ=TRUE)
+AR2
+fit2<-fitted(AR2)
+```
+
+```{r message=FALSE, warning=FALSE}
+summary(AR1)
+```
+```{r message=FALSE, warning=FALSE}
+fit<-fitted(AR1)
+head(fit)
+```
+
+```{r message=FALSE, warning=FALSE}
+head(fit2)
+```
+```{r message=FALSE, warning=FALSE}
+df1<-data.frame(res=res, fit=fit)
+ggplot(df1, aes(res,fit))+
+  geom_point()+
+  xlab("Детрендированный ряд")+
+  ylab("Предсказанные значения")+
+  ggtitle("Предсказанные значения для модели AR(1) VS Остатки")+
+  geom_line()+
+  stat_smooth(method="lm", se=FALSE)+
+  theme_minimal()
+cor(fit,res)
+```
+
+```{r message=FALSE, warning=FALSE}
+df2<-data.frame(res=res, fit2=fit2)
+ggplot(df2, aes(res,fit2))+
+  geom_point()+
+  xlab("Детрендированный ряд")+
+  ylab("Предсказанные значения")+
+  ggtitle("Предсказанные значения для модели AR(2) VS Остатки")+
+  geom_line()+
+  stat_smooth(method="lm", se=FALSE)+
+  theme_minimal()
+cor(fit2,res)
+```
+
+```{r message=FALSE, warning=FALSE}
+res2<-res-fit
+table_res<-tibble(res2,dat)
+data_fit<-as_tsibble(table_res, index=dat)
+```
+
+```{r message=FALSE, warning=FALSE}
+data_fit %>% 
+  ACF() %>% 
+  autoplot() + 
+  theme_minimal()+
+  ggtitle("Автокорреляционная функция для отбеленного ряда")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+table_res<-tibble(resAR1,dat)
+data_fit<-as_tsibble(table_res, index=dat)
+```
+
+```{r message=FALSE, warning=FALSE}
+data_fit %>% 
+  ACF() %>% 
+  autoplot() + 
+  theme_minimal()+
+  ggtitle("Автокорреляционная функция для отбеленного ряда")
+```
+
+```{r message=FALSE, warning=FALSE}
+var(res-fit)
+```
+```{r message=FALSE, warning=FALSE}
+var(res-fit2)
+```
+```{r message=FALSE, warning=FALSE}
+Box.test(res2,type ="Ljung-Box")
+```
+
+```{r message=FALSE, warning=FALSE}
+jarque.bera.test(res2)
+```
+
+```{r message=FALSE, warning=FALSE}
+tail(res)
+```
